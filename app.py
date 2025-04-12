@@ -1,35 +1,48 @@
+import streamlit as st # type: ignore
 import requests # type: ignore
 from bs4 import BeautifulSoup # type: ignore
 
-url = input("Colle l'URL de l'article : ")
+# Streamlit UI
+st.title("Générateur de citation de site web 📚")
+st.write("Entrez l'URL d'un site et obtenez la référence bibliographique formatée en français.")
 
-# Téléchargement de la page
-response = requests.get(url)
-soup = BeautifulSoup(response.text, "html.parser")
+# URL input box
+url = st.text_input("🔗 Entrez l'URL du site:")
 
-# Titre
-title = soup.title.string.strip() if soup.title else "Titre non trouvé"
+if url:
+    try:
+        # Fetch and parse the site
+        response = requests.get(url)
+        soup = BeautifulSoup(response.content, 'html.parser')
 
-# Auteur
-author = "Auteur non trouvé"
-author_tag = soup.find("meta", attrs={"name": "author"})
-if author_tag:
-    raw_author = author_tag.get("content", author)
-    # Séparer prénom et nom
-    parts = raw_author.strip().split()
-    if len(parts) >= 2:
-        last_name = parts[-1].upper()
-        first_name = " ".join(parts[:-1]).lower()
-        author = f"{last_name}, {first_name}"
-    else:
-        author = raw_author
+        # Extract metadata (try to find author)
+        author = ""
+        if soup.find("meta", attrs={"name": "author"}):
+            author = soup.find("meta", attrs={"name": "author"})["content"]
+        elif soup.find("meta", attrs={"property": "article:author"}):
+            author = soup.find("meta", attrs={"property": "article:author"})["content"]
 
-# Organisme / site name
-organization = "Organisme non trouvé"
-org_tag = soup.find("meta", attrs={"property": "og:site_name"})
-if org_tag:
-    organization = org_tag.get("content", organization)
+        # Try to split author name
+        if author:
+            parts = author.strip().split()
+            last_name = parts[-1].upper()
+            first_name = " ".join(parts[:-1]).capitalize()
+            author_formatted = f"{last_name}, {first_name}."
+        else:
+            author_formatted = "AUTEUR INCONNU, ."
 
-# Affichage
-print("\n--- Citation en français ---")
-print(f"{author}. {organization}, \x1B[3m{title} [en ligne]\x1B[0m, {url}")
+        # Organization (site name)
+        org = soup.find("meta", property="og:site_name")
+        org = org["content"] if org else "Organisation inconnue"
+
+        # Title of the page
+        title = soup.title.string.strip() if soup.title else "Titre inconnu"
+
+        # Final formatted citation
+        citation = f"{author_formatted} {org}, *{title} [en ligne]*, {url}"
+
+        st.subheader("📄 Citation générée :")
+        st.write(citation)
+
+    except Exception as e:
+        st.error(f"Erreur lors du traitement de l'URL : {e}")
